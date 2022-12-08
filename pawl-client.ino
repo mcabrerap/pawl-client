@@ -26,12 +26,13 @@ char password[] = "M4idy2831";
 
 String voltageHeader = "{\"voltage\":\"";
 String currentHeader = "\",\"current\":\"";
+String identifierHeader = "\",\"identifier\":\"";
+String logHeader = "{\"info\":\"";
+String commandNameHeader = "{\"name\":\"";
 String closeBracket = "\"}";
 
-String logHeader = "{\"info\":\"";
-String logFooter = "\"}";
-
-String jsonResponse = "";
+String measurementResponse = "";
+String identifier = "";
 int responseCode = 0;
 
 int scalePlot=10;
@@ -41,10 +42,6 @@ byte data_rcv[4];
 int _resolution = 4096;
 double voltage;
 double current;
-
-byte myStart[3]={0xA0,0x01,0xAB};
-byte myStop[3]={0xA0,0x02,0xAB};
-byte mySendAll[1]={0xC0};
 
 void setup() {
 
@@ -64,36 +61,27 @@ void setup() {
   Serial.print("You're connected to the network");
 }
 
-void loop() {
+void loop() {  
 
   String command = fecthCommand();  
 
-  if (command == "START") {
+  if (command == "STARTED_MEASUREMENT") {
 
     logger("command: " + command);
 
-    // initialize();
-    Serial2.write(mySendAll, 1);
-    delay(1000);
-    Serial2.write(myStart, 3);
+    initialize();
     
     HTTPClient http;
-    http.begin("http://192.168.0.7:3000/pawl/v1/api/response/");
+    http.begin("http://192.168.0.7:3000/pawl/v1/api/measurement/");
     http.addHeader("Content-Type", "application/json");   
 
     startMeasurement();
+
     isRunning = true;
-    // while (Serial2.available()) {
-        
-    //   Serial2.read();
-    // }
 
     while ((Serial2.available() > 0) && isRunning) {
-      // logger("isRunning: " + String(isRunning));
 
       c = Serial2.read();
-
-      // logger("Serial2.read(): " + String(c));
 
       switch (c) {
         case 0xA0:
@@ -112,35 +100,27 @@ void loop() {
 
           voltage = (double)((voltage - (_resolution / 2)) * (3.3 / _resolution));
           current = (double)((current - (_resolution / 2)) * (3.3 / _resolution))+1.25;
-          
-          Serial.print("v:");
-          Serial.print(voltage*scalePlot);
-          Serial.print(",c:");
-          Serial.println(current*scalePlot);
-          jsonResponse = voltageHeader + String(voltage*scalePlot, 2) + currentHeader + String(current*scalePlot, 2) + closeBracket;
-          responseCode = http.POST(jsonResponse);
-          logger("API");
-          break;
-        case 0xB0:
-          // ("ACK");
-          logger("ACK");
+
+          measurementResponse = voltageHeader + String(voltage, 13) + currentHeader + String(current, 13) + identifierHeader + identifier + closeBracket;
+          responseCode = http.POST(measurementResponse);
+
           break;
         case 0xB1:
-          // ("ENDRUN");
-          // Serial2.write(0xA0);
-          // Serial2.write(0x02);
-          // Serial2.write(0xAB);
-          // Serial2.write(0xC0);
-          Serial2.write(myStop, 3);
-          delay(1000);
-          Serial2.write(mySendAll, 1);
+
+          endMeasurement();
           isRunning = false;
-          logger("ENDRUN");          
+          logger("ENDRUN");
+          stoppedMeasurementCommand();
+          ESP.restart();
+          ESP.restart();
+          ESP.restart();         
           break;
+          
         default:
+
           break;
       }
-    }
+    }   
   }  
 }
 
@@ -159,12 +139,18 @@ String fecthCommand() {
 
     if (httpCode == 200) {
 
-      command = http.getString();            
+      command = http.getString();
+      DynamicJsonDocument commandJsonDocument(3072);
+      DeserializationError gateErrorDeserialize = deserializeJson(commandJsonDocument, command);
+      String commandName = commandJsonDocument["name"];
+      String commandIdentifier = commandJsonDocument["identifier"];
+      identifier = commandIdentifier;
+      command = commandName;    
     }
 
     http.end();
 
-    // delay(1000);   
+    delay(1000);   
   }
 
   return command;
@@ -172,7 +158,11 @@ String fecthCommand() {
 
 void initialize() {
 
-  Serial2.write(0xC0);
+  Serial2.write(0xA0);
+  Serial2.write(0x04);
+  Serial2.write(0x04);
+  Serial2.write(0);
+  Serial2.write(0xAB);
 }
 
 void startMeasurement() {
@@ -182,16 +172,38 @@ void startMeasurement() {
   Serial2.write(0xAB);
 }
 
+void endMeasurement() {
+
+  Serial2.write(0xA0);
+  Serial2.write(0x02);
+  Serial2.write(0xAB);
+  Serial2.write(0xC0);
+}
+
 void logger(String log) {
 
   int responseCode = 0;
-  String logData = "";
+  String logData = "";  
 
   HTTPClient http;
   http.begin("http://192.168.0.7:3000/pawl/v1/api/pawl-logger/");
   http.addHeader("Content-Type", "application/json");
 
-  logData = logHeader + log + logFooter;
+  logData = logHeader + log + closeBracket;
 
   responseCode = http.POST(logData);
+}
+
+void stoppedMeasurementCommand() {
+
+  int responseCode = 0;
+  String commandRequest = "";
+
+  HTTPClient http;
+  http.begin("http://192.168.0.7:3000/pawl/v1/api/command/");
+  http.addHeader("Content-Type", "application/json");
+
+  commandRequest = commandNameHeader + "STOPPED_MEASUREMENT" + identifierHeader + "0" + closeBracket;
+
+  responseCode = http.PUT(commandRequest);
 }
