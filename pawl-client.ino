@@ -27,6 +27,7 @@ char password[] = "M4idy2831";
 String voltageHeader = "{\"voltage\":\"";
 String currentHeader = "\",\"current\":\"";
 String identifierHeader = "\",\"identifier\":\"";
+String deviceIdHeader = "\",\"deviceId\":\"";
 String logHeader = "{\"info\":\"";
 String commandNameHeader = "{\"name\":\"";
 String closeBracket = "\"}";
@@ -37,11 +38,14 @@ int responseCode = 0;
 
 int scalePlot=10;
 bool isRunning = false;
+bool successfulRun = false;
 byte c;
 byte data_rcv[4];
 int _resolution = 4096;
 double voltage;
 double current;
+
+String deviceId = "dev-001";
 
 void setup() {
 
@@ -52,18 +56,19 @@ void setup() {
 
   while (WiFi.status() != WL_CONNECTED) {
 
-    Serial.print("Attempting to connect to WPA SSID: ");
-    Serial.println(ssid);
+    logger("Attempting to connect to WPA SSID");    
 
     delay(ONE_SECOND);
   }
 
-  Serial.print("You're connected to the network");
+  logger("You're connected to the network");
 }
 
 void loop() {  
 
-  String command = fecthCommand();  
+  String command = fecthCommand();
+
+  logger("BEFORE: command: " + command);  
 
   if (command == "STARTED_MEASUREMENT") {
 
@@ -72,7 +77,7 @@ void loop() {
     initialize();
     
     HTTPClient http;
-    http.begin("http://192.168.0.7:3000/pawl/v1/api/measurement/");
+    http.begin("http://192.168.0.8:3000/pawl/v1/api/measurement/");
     http.addHeader("Content-Type", "application/json");   
 
     startMeasurement();
@@ -101,16 +106,21 @@ void loop() {
           voltage = (double)((voltage - (_resolution / 2)) * (3.3 / _resolution));
           current = (double)((current - (_resolution / 2)) * (3.3 / _resolution))+1.25;
 
-          measurementResponse = voltageHeader + String(voltage, 13) + currentHeader + String(current, 13) + identifierHeader + identifier + closeBracket;
+          measurementResponse = voltageHeader + String(voltage, 13) + currentHeader + String(current, 13) + identifierHeader + identifier + deviceIdHeader + deviceId + closeBracket;
           responseCode = http.POST(measurementResponse);
+          successfulRun = true;
 
           break;
         case 0xB1:
 
           endMeasurement();
-          isRunning = false;
-          logger("ENDRUN");
-          stoppedMeasurementCommand();
+          isRunning = false;          
+
+          if (successfulRun) {
+            stoppedMeasurementCommand();
+            logger("ENDRUN");
+          }
+          
           ESP.restart();
           ESP.restart();
           ESP.restart();         
@@ -132,7 +142,7 @@ String fecthCommand() {
 
     HTTPClient http;
 
-    http.begin("http://192.168.0.7:3000/pawl/v1/api/command/");
+    http.begin("http://192.168.0.8:3000/pawl/v1/api/command/" + deviceId);
     http.addHeader("Content-Type", "application/json");
 
     int httpCode = http.GET();
@@ -186,7 +196,7 @@ void logger(String log) {
   String logData = "";  
 
   HTTPClient http;
-  http.begin("http://192.168.0.7:3000/pawl/v1/api/pawl-logger/");
+  http.begin("http://192.168.0.8:3000/pawl/v1/api/pawl-logger/");
   http.addHeader("Content-Type", "application/json");
 
   logData = logHeader + log + closeBracket;
@@ -200,10 +210,10 @@ void stoppedMeasurementCommand() {
   String commandRequest = "";
 
   HTTPClient http;
-  http.begin("http://192.168.0.7:3000/pawl/v1/api/command/");
+  http.begin("http://192.168.0.8:3000/pawl/v1/api/command/" + deviceId);
   http.addHeader("Content-Type", "application/json");
 
-  commandRequest = commandNameHeader + "STOPPED_MEASUREMENT" + identifierHeader + "0" + closeBracket;
+  commandRequest = commandNameHeader + "STOPPED_MEASUREMENT" + identifierHeader + deviceId + closeBracket;
 
   responseCode = http.PUT(commandRequest);
 }
