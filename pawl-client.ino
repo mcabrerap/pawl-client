@@ -24,6 +24,8 @@
 char ssid[] = "Google Home Wifi";
 char password[] = "M4idy2831";
 
+String apiUrl = "http://192.168.0.8:3000";
+
 String voltageHeader = "{\"voltage\":\"";
 String currentHeader = "\",\"current\":\"";
 String identifierHeader = "\",\"identifier\":\"";
@@ -77,7 +79,7 @@ void loop() {
     initialize();
     
     HTTPClient http;
-    http.begin("http://192.168.0.8:3000/pawl/v1/api/measurement/");
+    http.begin(apiUrl + "/pawl/v1/api/measurement/");
     http.addHeader("Content-Type", "application/json");   
 
     startMeasurement();
@@ -142,7 +144,7 @@ String fecthCommand() {
 
     HTTPClient http;
 
-    http.begin("http://192.168.0.8:3000/pawl/v1/api/command/" + deviceId);
+    http.begin(apiUrl + "/pawl/v1/api/command/" + deviceId);
     http.addHeader("Content-Type", "application/json");
 
     int httpCode = http.GET();
@@ -196,7 +198,7 @@ void logger(String log) {
   String logData = "";  
 
   HTTPClient http;
-  http.begin("http://192.168.0.8:3000/pawl/v1/api/pawl-logger/");
+  http.begin(apiUrl + "/pawl/v1/api/pawl-logger/");
   http.addHeader("Content-Type", "application/json");
 
   logData = logHeader + log + closeBracket;
@@ -210,7 +212,7 @@ void stoppedMeasurementCommand() {
   String commandRequest = "";
 
   HTTPClient http;
-  http.begin("http://192.168.0.8:3000/pawl/v1/api/command/" + deviceId);
+  http.begin(apiUrl + "/pawl/v1/api/command/" + deviceId);
   http.addHeader("Content-Type", "application/json");
 
   commandRequest = commandNameHeader + "STOPPED_MEASUREMENT" + identifierHeader + deviceId + closeBracket;
