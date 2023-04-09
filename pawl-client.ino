@@ -18,7 +18,7 @@
 
 char ssid[] = "Google Home Wifi";
 char password[] = "M4idy2831";
-String apiUrl = "http://192.168.0.8:3000";
+String apiUrl = "http://45.61.54.143:3000";
 
 String rawHeader = "{\"raw\":\"";
 String identifierHeader = "\",\"identifier\":\"";
